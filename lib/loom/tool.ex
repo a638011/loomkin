@@ -1,20 +1,50 @@
 defmodule Loom.Tool do
   @moduledoc "Shared helpers for Loom tool actions."
 
-  @doc "Validates that the given path does not escape `project_path`."
+  @doc """
+  Validates that the given path does not escape `project_path`.
+
+  Resolves symlinks so that a symlink pointing outside the project
+  directory is correctly rejected. Falls back to the expanded path
+  when the target does not yet exist (e.g. file creation).
+  """
   @spec safe_path!(String.t(), String.t()) :: String.t()
   def safe_path!(file_path, project_path) do
-    resolved = Path.expand(file_path, project_path)
-    project_root = Path.expand(project_path)
+    expanded = Path.expand(file_path, project_path)
+    project_root = resolve_real(Path.expand(project_path))
+    resolved = resolve_real(expanded)
 
-    # Ensure trailing separator to prevent prefix confusion:
-    # "/tmp/proj" would match "/tmp/project2/..." without the separator
     unless resolved == project_root or
              String.starts_with?(resolved, project_root <> "/") do
       raise ArgumentError, "Path #{file_path} is outside the project directory"
     end
 
     resolved
+  end
+
+  # Resolve symlinks by walking each path component. For components
+  # that are symlinks, follow the link and continue. For non-existent
+  # tails (file creation), resolve the parent and append the basename.
+  defp resolve_real(path) do
+    parts = Path.split(path)
+
+    Enum.reduce(parts, "", fn part, acc ->
+      current = if acc == "", do: part, else: Path.join(acc, part)
+
+      case File.read_link(current) do
+        {:ok, target} ->
+          absolute_target =
+            if Path.type(target) == :absolute,
+              do: target,
+              else: Path.expand(target, Path.dirname(current))
+
+          # The target itself might contain symlinks — resolve recursively
+          resolve_real(absolute_target)
+
+        {:error, _} ->
+          current
+      end
+    end)
   end
 
   @doc "Fetches a param by key, trying atom key first then string key."
