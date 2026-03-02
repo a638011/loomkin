@@ -14,6 +14,7 @@ defmodule Loomkin.AgentLoop do
   require Logger
 
   @max_rate_limit_retries 3
+  @max_iterations 25
 
   @type on_event :: (atom(), map() -> :ok)
 
@@ -94,6 +95,7 @@ defmodule Loomkin.AgentLoop do
       session_id: Keyword.get(opts, :session_id),
       agent_name: Keyword.get(opts, :agent_name),
       team_id: Keyword.get(opts, :team_id),
+      max_iterations: Keyword.get(opts, :max_iterations, @max_iterations),
       on_event: Keyword.get(opts, :on_event, fn _name, _payload -> :ok end),
       on_tool_execute: Keyword.get(opts, :on_tool_execute),
       check_permission: Keyword.get(opts, :check_permission),
@@ -102,6 +104,23 @@ defmodule Loomkin.AgentLoop do
   end
 
   # -- Loop --------------------------------------------------------------------
+
+  defp do_loop(messages, %{max_iterations: max} = config, iteration)
+       when iteration >= max do
+    error_msg =
+      "Agent exceeded maximum iterations (#{max}). " <>
+        "Stopping to avoid infinite loops."
+
+    Logger.warning("AgentLoop: #{error_msg}")
+    emit(config, :max_iterations_exceeded, %{iterations: iteration, max: max})
+
+    # Return the error as an assistant message so the user sees it
+    assistant_msg = %{role: :assistant, content: error_msg}
+    messages = messages ++ [assistant_msg]
+    emit(config, :new_message, assistant_msg)
+
+    {:ok, error_msg, messages, %{usage: %{input_tokens: 0, output_tokens: 0, total_cost: 0}}}
+  end
 
   defp do_loop(messages, config, iteration) do
     # Auto-offload context if agent is above threshold
