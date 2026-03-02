@@ -140,5 +140,9 @@ defmodule Loomkin.Teams.PriorityRouterTest do
       assert {:normal, :unknown} = PriorityRouter.classify("not a tuple")
       assert {:normal, :unknown} = PriorityRouter.classify(42)
     end
+
+    test "empty tuple returns normal unknown instead of crashing" do
+      assert {:normal, :unknown} = PriorityRouter.classify({})
+    end
   end
 end

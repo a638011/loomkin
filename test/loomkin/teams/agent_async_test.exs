@@ -200,7 +200,7 @@ defmodule Loomkin.Teams.AgentAsyncTest do
       refute Process.alive?(task.pid)
     end
 
-    test "handles urgent file_conflict by injecting warning (loop continues)" do
+    test "handles urgent file_conflict by queuing injection (loop continues)" do
       %{pid: pid, team_id: team_id} = start_agent()
       task = simulate_active_loop(pid)
 
@@ -217,9 +217,37 @@ defmodule Loomkin.Teams.AgentAsyncTest do
       assert state.loop_task != nil
       assert Process.alive?(task.pid)
 
-      # Warning should be injected
+      # Warning should be queued as inject_system_message (not in messages yet)
+      assert Enum.any?(state.priority_queue, fn
+        {:inject_system_message, content} -> String.contains?(content, "File conflict")
+        _ -> false
+      end)
+    end
+
+    test "file_conflict warning survives loop completion via drain" do
+      %{pid: pid} = start_agent()
+
+      ref = make_ref()
+      fake_task = %Task{pid: self(), ref: ref, owner: self(), mfa: {__MODULE__, :fake, []}}
+
+      # Simulate active loop with a queued file_conflict inject
+      :sys.replace_state(pid, fn state ->
+        %{state |
+          loop_task: {fake_task, nil},
+          status: :working,
+          priority_queue: [
+            {:inject_system_message, "[URGENT] File conflict detected: %{file: \"lib/foo.ex\"}"}
+          ]
+        }
+      end)
+
+      # Complete the loop — messages get set from loop result, then drain replays inject
+      send(pid, {ref, {:loop_ok, "done", [%{role: :assistant, content: "done"}], %{usage: %{}}}})
+      Process.sleep(100)
+
+      state = :sys.get_state(pid)
       assert Enum.any?(state.messages, fn msg ->
-        msg.role == :system && String.contains?(msg.content, "[URGENT] File conflict")
+        msg.role == :system && String.contains?(msg.content, "File conflict")
       end)
     end
 

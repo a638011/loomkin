@@ -188,7 +188,9 @@ defmodule Loomkin.Teams.Agent do
       {%Task{} = task, original_from} ->
         Logger.info("[Agent:#{state.name}] Cancelling agent loop")
         Task.shutdown(task, :brutal_kill)
+        task_id = state.task && state.task[:id]
         if original_from, do: GenServer.reply(original_from, {:error, :cancelled})
+        if !original_from && task_id, do: Loomkin.Teams.Tasks.fail_task(task_id, "cancelled")
         state = %{state | loop_task: nil, pending_updates: [], priority_queue: []}
         state = set_status(state, :idle)
         broadcast_team(state, {:agent_status, state.name, :idle})
@@ -359,12 +361,17 @@ defmodule Loomkin.Teams.Agent do
     case state.loop_task do
       {%Task{ref: ^ref}, from} ->
         Logger.error("[Agent:#{state.name}] Loop task crashed: #{inspect(reason)}")
+        task_id = state.task && state.task[:id]
 
         state = %{state | loop_task: nil}
         state = set_status(state, :idle)
         broadcast_team(state, {:agent_status, state.name, :idle})
 
-        if from, do: GenServer.reply(from, {:error, :crashed})
+        if from do
+          GenServer.reply(from, {:error, :crashed})
+        else
+          if task_id, do: Loomkin.Teams.Tasks.fail_task(task_id, "crashed: #{inspect(reason)}")
+        end
 
         {:noreply, drain_queues(state)}
 
@@ -782,6 +789,12 @@ defmodule Loomkin.Teams.Agent do
   end
 
   @impl true
+  def handle_info({:inject_system_message, content}, state) do
+    msg = %{role: :system, content: content}
+    {:noreply, %{state | messages: state.messages ++ [msg]}}
+  end
+
+  @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -985,7 +998,9 @@ defmodule Loomkin.Teams.Agent do
     case state.loop_task do
       {%Task{} = task, from} ->
         Task.shutdown(task, :brutal_kill)
+        task_id = state.task && state.task[:id]
         if from, do: GenServer.reply(from, {:error, :budget_exceeded})
+        if !from && task_id, do: Loomkin.Teams.Tasks.fail_task(task_id, "budget exceeded")
         state = %{state | loop_task: nil, pending_updates: [], priority_queue: []}
         state = set_status(state, :idle)
         broadcast_team(state, {:agent_status, state.name, :idle})
@@ -997,12 +1012,10 @@ defmodule Loomkin.Teams.Agent do
   end
 
   defp handle_urgent({:file_conflict, details}, state) do
-    warning = %{
-      role: :system,
-      content: "[URGENT] File conflict detected: #{inspect(details)}"
-    }
-
-    {:noreply, %{state | messages: state.messages ++ [warning]}}
+    # Queue as an internal message so it survives the loop result handler
+    # (which overwrites state.messages with the task-returned msgs).
+    inject = {:inject_system_message, "[URGENT] File conflict detected: #{inspect(details)}"}
+    {:noreply, %{state | priority_queue: state.priority_queue ++ [inject]}}
   end
 
   defp handle_urgent(_msg, state), do: {:noreply, state}

@@ -38,7 +38,7 @@ defmodule Loomkin.Teams.PriorityRouter do
       {:ignore, :agent_status}
   """
   @spec classify(tuple()) :: {:urgent | :high | :normal | :ignore, atom()}
-  def classify(msg) when is_tuple(msg) do
+  def classify(msg) when is_tuple(msg) and tuple_size(msg) > 0 do
     type = elem(msg, 0)
 
     cond do
