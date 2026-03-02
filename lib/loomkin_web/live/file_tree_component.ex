@@ -91,14 +91,17 @@ defmodule LoomkinWeb.FileTreeComponent do
         <h3 class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">Explorer</h3>
         <div class="relative">
           <.icon name="hero-magnifying-glass-mini" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Filter files..."
-            value={@filter}
-            phx-keyup="filter"
-            phx-target={@myself}
-            class="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800/60 border border-gray-700/50 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-shadow"
-          />
+          <form phx-change="filter" phx-target={@myself} phx-submit="filter">
+            <input
+              type="text"
+              name="filter"
+              placeholder="Filter files..."
+              value={@filter}
+              class="w-full pl-8 pr-8 py-1.5 text-xs bg-gray-800/60 border border-gray-700/50 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-shadow"
+              autocomplete="off"
+              phx-debounce="200"
+            />
+          </form>
           <button
             :if={@filter != ""}
             phx-click="clear_filter"

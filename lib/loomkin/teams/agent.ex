@@ -983,6 +983,9 @@ defmodule Loomkin.Teams.Agent do
       :context_offloaded ->
         Phoenix.PubSub.broadcast(Loomkin.PubSub, topic, {:context_offloaded, agent_name, payload})
 
+      :tool_error ->
+        Phoenix.PubSub.broadcast(Loomkin.PubSub, topic, {:agent_error, agent_name, payload})
+
       :max_iterations_exceeded ->
         Phoenix.PubSub.broadcast(Loomkin.PubSub, topic, {:agent_error, agent_name, payload})
 

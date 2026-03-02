@@ -113,6 +113,7 @@ defmodule LoomkinWeb.WorkspaceLive do
     assign(socket,
       session_id: session_id,
       project_path: project_path,
+      editing_project_path: false,
       model: effective_model,
       messages: messages,
       session_cost: session_metrics.cost_usd,
@@ -228,6 +229,33 @@ defmodule LoomkinWeb.WorkspaceLive do
 
   def handle_event("switch_team", %{"team-id" => team_id}, socket) do
     {:noreply, assign(socket, active_team_id: team_id)}
+  end
+
+  def handle_event("edit_project_path", _params, socket) do
+    {:noreply, assign(socket, editing_project_path: true)}
+  end
+
+  def handle_event("cancel_edit_project", _params, socket) do
+    {:noreply, assign(socket, editing_project_path: false)}
+  end
+
+  def handle_event("set_project_path", %{"path" => path}, socket) do
+    path = String.trim(path)
+
+    if File.dir?(path) do
+      {:noreply,
+       socket
+       |> assign(
+         project_path: path,
+         editing_project_path: false,
+         file_tree_version: (socket.assigns[:file_tree_version] || 0) + 1
+       )}
+    else
+      {:noreply,
+       socket
+       |> assign(editing_project_path: false)
+       |> put_flash(:error, "Directory not found: #{path}")}
+    end
   end
 
   def handle_event("toggle_mode", _, socket) do
@@ -773,6 +801,26 @@ defmodule LoomkinWeb.WorkspaceLive do
             model={@model}
           />
 
+          <%!-- Project path switcher --%>
+          <div class="flex items-center gap-2 text-sm text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <%= if @editing_project_path do %>
+              <form phx-submit="set_project_path" class="flex items-center gap-1">
+                <input type="text" name="path" value={@project_path}
+                  class="bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-sm text-gray-200 w-64"
+                  autofocus />
+                <button type="submit" class="text-xs text-violet-400 hover:text-violet-300">Go</button>
+                <button type="button" phx-click="cancel_edit_project" class="text-xs text-gray-500 hover:text-gray-400">Cancel</button>
+              </form>
+            <% else %>
+              <button phx-click="edit_project_path" class="hover:text-gray-200 transition truncate max-w-xs" title={@project_path}>
+                {@project_path}
+              </button>
+            <% end %>
+          </div>
+
           <%!-- Team indicator (mission control mode) --%>
           <div :if={@mode == :mission_control && @active_team_id} class="flex items-center gap-2">
             <span class="text-xs text-violet-400 font-medium">
@@ -841,7 +889,7 @@ defmodule LoomkinWeb.WorkspaceLive do
       </header>
 
       <%!-- ── Main Content — branches on mode ── --%>
-      <div class="flex flex-1 overflow-hidden">
+      <div class="flex flex-1 min-h-0">
         {render_mode(@mode, assigns)}
       </div>
     </div>
@@ -873,7 +921,7 @@ defmodule LoomkinWeb.WorkspaceLive do
     <%!-- Right: Sidebar --%>
     <div class="w-96 border-l border-gray-800 flex flex-col bg-gray-900/50">
       <%!-- Sidebar tab bar (no :team tab — that's in mission control) --%>
-      <div class="flex items-center gap-1 px-3 py-2 border-b border-gray-800 bg-gray-900/80">
+      <div class="flex items-center gap-1 px-3 py-2 border-b border-gray-800 bg-gray-900/80 overflow-x-auto flex-shrink-0">
         <button
           :for={tab <- [:files, :diff, :terminal, :graph]}
           phx-click="switch_tab"
@@ -1352,6 +1400,9 @@ defmodule LoomkinWeb.WorkspaceLive do
       cond do
         is_map(payload) && payload[:max] ->
           "Exceeded max iterations (#{payload[:max]})"
+
+        is_map(payload) && payload[:error] ->
+          "#{payload[:tool_name] || "Tool"}: #{String.slice(to_string(payload[:error]), 0, 300)}"
 
         is_map(payload) && payload[:reason] ->
           "Error: #{String.slice(to_string(payload[:reason]), 0, 300)}"

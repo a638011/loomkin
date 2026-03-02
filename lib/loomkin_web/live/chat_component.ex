@@ -67,19 +67,29 @@ defmodule LoomkinWeb.ChatComponent do
 
             <% :tool -> %>
               <div class="max-w-[85%] ml-10 animate-fade-in-up">
-                <div class={"tool-card rounded-xl overflow-hidden border transition-all duration-200 #{tool_card_border(msg)}"}>
-                  <div
-                    class={"flex items-center gap-2 px-3 py-2 cursor-pointer select-none text-xs font-medium #{tool_card_header(msg)}"}
-                    onclick="this.parentElement.classList.toggle('tool-expanded')"
-                  >
-                    <span class="tool-card-icon">{tool_icon(msg)}</span>
-                    <span>{tool_display_name(msg)}</span>
-                    <span class="ml-auto text-gray-500 tool-card-chevron transition-transform duration-200">&#9656;</span>
+                <%= if String.starts_with?(msg.content || "", "Error:") do %>
+                  <div class="rounded-xl overflow-hidden border border-red-500/30 bg-red-950/20 px-3 py-2">
+                    <div class="flex items-center gap-2 text-xs font-medium text-red-400">
+                      <span class="text-red-400">&#9888;</span>
+                      <span>{tool_display_name(msg)}</span>
+                    </div>
+                    <pre class="text-xs text-red-300/80 whitespace-pre-wrap mt-1">{msg.content}</pre>
                   </div>
-                  <div class="tool-card-body px-3 py-2 border-t border-gray-800/50 bg-gray-900/30">
-                    <pre class="text-xs text-gray-400 whitespace-pre-wrap overflow-x-auto font-mono leading-relaxed tool-file-paths">{truncate_result(msg.content)}</pre>
+                <% else %>
+                  <div class={"tool-card rounded-xl overflow-hidden border transition-all duration-200 #{tool_card_border(msg)}"}>
+                    <div
+                      class={"flex items-center gap-2 px-3 py-2 cursor-pointer select-none text-xs font-medium #{tool_card_header(msg)}"}
+                      onclick="this.parentElement.classList.toggle('tool-expanded')"
+                    >
+                      <span class="tool-card-icon">{tool_icon(msg)}</span>
+                      <span>{tool_display_name(msg)}</span>
+                      <span class="ml-auto text-gray-500 tool-card-chevron transition-transform duration-200">&#9656;</span>
+                    </div>
+                    <div class="tool-card-body px-3 py-2 border-t border-gray-800/50 bg-gray-900/30">
+                      <pre class="text-xs text-gray-400 whitespace-pre-wrap overflow-x-auto font-mono leading-relaxed tool-file-paths">{truncate_result(msg.content)}</pre>
+                    </div>
                   </div>
-                </div>
+                <% end %>
               </div>
 
             <% _ -> %>
@@ -162,7 +172,7 @@ defmodule LoomkinWeb.ChatComponent do
     streaming = Keyword.get(opts, :streaming, false)
 
     doc =
-      MDEx.new(streaming: streaming)
+      MDEx.new(streaming: streaming, render: [unsafe_: true])
       |> MDEx.Document.put_markdown(content)
 
     case MDEx.to_html(doc) do

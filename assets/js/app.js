@@ -28,18 +28,27 @@ Hooks.ShiftEnterSubmit = {
   }
 }
 
-// ScrollToBottom: auto-scrolls container to bottom when content updates
+// ScrollToBottom: auto-scrolls container to bottom when content updates (only if near bottom)
 Hooks.ScrollToBottom = {
   mounted() {
     this.scrollToBottom()
-    this.observer = new MutationObserver(() => this.scrollToBottom())
+    this.observer = new MutationObserver(() => this.maybeScrollToBottom())
     this.observer.observe(this.el, { childList: true, subtree: true })
   },
   updated() {
-    this.scrollToBottom()
+    this.maybeScrollToBottom()
   },
   destroyed() {
     if (this.observer) this.observer.disconnect()
+  },
+  isNearBottom() {
+    const threshold = 100
+    return this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < threshold
+  },
+  maybeScrollToBottom() {
+    if (this.isNearBottom()) {
+      this.scrollToBottom()
+    }
   },
   scrollToBottom() {
     this.el.scrollTop = this.el.scrollHeight

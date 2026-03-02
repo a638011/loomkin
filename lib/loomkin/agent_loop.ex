@@ -423,6 +423,10 @@ defmodule Loomkin.AgentLoop do
   defp record_tool_result(messages, config, tool_name, tool_call_id, result_text) do
     emit(config, :tool_complete, %{tool_name: tool_name, result: result_text})
 
+    if String.starts_with?(result_text || "", "Error:") do
+      emit(config, :tool_error, %{tool_name: tool_name, error: result_text})
+    end
+
     tool_msg = %{role: :tool, content: result_text, tool_call_id: tool_call_id}
     emit(config, :new_message, tool_msg)
 
