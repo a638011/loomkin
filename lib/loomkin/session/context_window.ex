@@ -174,14 +174,11 @@ defmodule Loomkin.Session.ContextWindow do
         budget.history
       end
 
-    recent_messages = select_recent(messages, available)
+    {recent_messages, evicted} = select_recent(messages, available)
 
     # Summarize evicted messages to preserve context
-    evicted_count = length(messages) - length(recent_messages)
-
     recent_messages =
-      if evicted_count > 0 do
-        evicted = Enum.take(messages, evicted_count)
+      if evicted != [] do
         summary = summarize_old_messages(evicted, Keyword.take(opts, [:model]))
 
         if summary != "" do
@@ -294,6 +291,8 @@ defmodule Loomkin.Session.ContextWindow do
     end
   end
 
+  # Returns {kept_messages, evicted_messages} both in original order.
+  # High-priority messages are always retained; evicted list excludes them.
   defp select_recent(messages, available_tokens) do
     indexed = Enum.with_index(messages)
 
@@ -321,10 +320,18 @@ defmodule Loomkin.Session.ContextWindow do
     high_indices = high_indexed |> Enum.map(fn {_, i} -> i end) |> MapSet.new()
     selected_indices = MapSet.union(high_indices, kept_normal_indices)
 
-    # Return in original order
-    indexed
-    |> Enum.filter(fn {_msg, i} -> MapSet.member?(selected_indices, i) end)
-    |> Enum.map(fn {msg, _i} -> msg end)
+    # Split into kept and evicted, both in original order.
+    # Evicted = normal messages not selected (high-priority are never evicted).
+    {kept, evicted} =
+      Enum.reduce(indexed, {[], []}, fn {msg, i}, {kept_acc, evicted_acc} ->
+        if MapSet.member?(selected_indices, i) do
+          {[msg | kept_acc], evicted_acc}
+        else
+          {kept_acc, [msg | evicted_acc]}
+        end
+      end)
+
+    {Enum.reverse(kept), Enum.reverse(evicted)}
   end
 
   defp high_priority?(%{priority: :high}), do: true

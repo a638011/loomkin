@@ -17,7 +17,7 @@ defmodule Loomkin.Permissions.Manager do
   @coordination_tools ~w(team_spawn team_assign team_progress team_dissolve
     peer_message peer_discovery peer_claim_region peer_review peer_create_task
     peer_ask_question peer_answer_question peer_forward_question peer_change_role
-    context_retrieve context_offload)
+    context_retrieve context_offload search_keepers)
 
   @doc """
   Check whether a tool invocation is allowed.

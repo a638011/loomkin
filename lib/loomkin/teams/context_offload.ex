@@ -63,7 +63,7 @@ defmodule Loomkin.Teams.ContextOffload do
   Returns `{:ok, keeper_pid, index_entry}` or `{:error, reason}`.
   """
   def offload_to_keeper(team_id, agent_name, messages, opts \\ []) do
-    topic = Keyword.get(opts, :topic, generate_topic(messages))
+    topic = Keyword.get_lazy(opts, :topic, fn -> generate_topic(messages) end)
     metadata = Keyword.get(opts, :metadata, %{})
 
     case Manager.spawn_keeper(team_id,
