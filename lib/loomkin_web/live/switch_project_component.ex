@@ -69,6 +69,7 @@ defmodule LoomkinWeb.SwitchProjectComponent do
           autofocus
           placeholder="/path/to/project"
         />
+        <p :if={@modal.error} class="text-rose-400 text-sm mt-1">{@modal.error}</p>
       </div>
       <div class="flex gap-2 justify-end">
         <button

@@ -844,8 +844,18 @@ defmodule LoomkinWeb.WorkspaceLive do
   # --- Switch Project modal messages ---
 
   def handle_info({:switch_project_set_path, path}, socket) do
-    if !File.dir?(path) do
-      {:noreply, put_flash(socket, :error, "Directory not found: #{path}")}
+    # Expand ~ to home directory and normalize path
+    expanded_path = path |> Path.expand() |> Path.absname()
+    
+    if !File.dir?(expanded_path) do
+      # Show inline error instead of closing modal
+      {:noreply,
+       assign(socket,
+         switch_project_modal: %{
+           phase: :input,
+           error: "Directory not found: #{expanded_path}"
+         }
+       )}
     else
       team_id = socket.assigns[:team_id]
       # Include sub-team agents so we don't skip confirmation while child agents are running
@@ -853,7 +863,7 @@ defmodule LoomkinWeb.WorkspaceLive do
       active = Enum.filter(agents, fn a -> a.status not in [:idle] end)
 
       if active == [] do
-        {:noreply, do_switch_project(socket, path)}
+        {:noreply, do_switch_project(socket, expanded_path)}
       else
         {:noreply,
          assign(socket,
@@ -871,13 +881,23 @@ defmodule LoomkinWeb.WorkspaceLive do
     {:noreply, assign(socket, switch_project_modal: nil)}
   end
 
+  # Handle loading recent projects from localStorage
+  def handle_event("load-recent-projects", %{"projects" => projects}, socket) do
+    # Validate paths still exist
+    valid_projects = Enum.filter(projects, &File.dir?/1)
+    recent = Enum.take(valid_projects, 5)
+    {:noreply, assign(socket, recent_projects: recent)}
+  end
+
   def handle_info(:confirm_switch_project, socket) do
     modal = socket.assigns.switch_project_modal
 
     if modal do
+      # Re-validate and expand path in case of page refresh
+      expanded_path = modal.target_path |> Path.expand() |> Path.absname()
       team_id = socket.assigns[:team_id]
       if team_id, do: Teams.Manager.cancel_all_loops(team_id)
-      {:noreply, do_switch_project(socket, modal.target_path)}
+      {:noreply, do_switch_project(socket, expanded_path)}
     else
       {:noreply, socket}
     end
@@ -1290,14 +1310,15 @@ defmodule LoomkinWeb.WorkspaceLive do
       />
 
       <%!-- Switch Project modal overlay --%>
-      <.live_component
-        :if={@switch_project_modal}
-        module={LoomkinWeb.SwitchProjectComponent}
-        id="switch-project-modal"
-        modal={@switch_project_modal}
-        explorer_path={@explorer_path}
-        recent_projects={@recent_projects}
-      />
+      <div :if={@switch_project_modal} phx-hook="RecentProjects">
+        <.live_component
+          module={LoomkinWeb.SwitchProjectComponent}
+          id="switch-project-modal"
+          modal={@switch_project_modal}
+          explorer_path={@explorer_path}
+          recent_projects={@recent_projects}
+        />
+      </div>
 
       <%!-- Command palette overlay --%>
       {render_command_palette(assigns)}
@@ -2664,6 +2685,7 @@ defmodule LoomkinWeb.WorkspaceLive do
       file_tree_version: (socket.assigns[:file_tree_version] || 0) + 1,
       recent_projects: recent
     )
+    |> push_event("save-recent-projects", %{projects: recent})
   end
 
   defp ensure_index_started(project_path) do

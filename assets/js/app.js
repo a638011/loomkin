@@ -373,6 +373,37 @@ Hooks.AutoDismissFlash = {
   }
 }
 
+// RecentProjects: persists recent projects in localStorage
+Hooks.RecentProjects = {
+  mounted() {
+    // Load recent projects from localStorage on mount
+    const saved = localStorage.getItem('loomkin_recent_projects')
+    if (saved) {
+      try {
+        const projects = JSON.parse(saved)
+        this.pushEvent("load-recent-projects", { projects })
+      } catch (e) {
+        // Ignore invalid JSON
+      }
+    }
+    
+    // Listen for save events from the server
+    this.handleEvent("save-recent-projects", ({ projects }) => {
+      localStorage.setItem('loomkin_recent_projects', JSON.stringify(projects))
+    })
+  },
+  updated() {
+    // Save recent projects when they change
+    const recentEl = this.el.querySelector('[data-recent-projects]')
+    if (recentEl) {
+      const projects = recentEl.dataset.recentProjects
+      if (projects) {
+        localStorage.setItem('loomkin_recent_projects', projects)
+      }
+    }
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
