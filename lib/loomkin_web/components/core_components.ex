@@ -16,7 +16,7 @@ defmodule LoomkinWeb.CoreComponents do
   """
   attr :id, :string, doc: "the optional id of flash container"
   attr :flash, :map, default: %{}, doc: "the map of flash messages"
-  attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
+  attr :kind, :atom, values: [:info, :error, :warning], doc: "used for styling and flash lookup"
   attr :title, :string, default: nil
   attr :rest, :global
 
@@ -29,19 +29,29 @@ defmodule LoomkinWeb.CoreComponents do
     <div
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
+      phx-mounted={Hooks.AutoDismissFlash}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "fixed top-3 right-3 w-80 sm:w-96 z-50 rounded-xl p-3.5 shadow-lg backdrop-blur-sm animate-slide-in-right",
+        "fixed top-3 right-3 w-80 sm:w-96 z-50 rounded-xl p-3.5 shadow-lg backdrop-blur-sm animate-slide-in-right relative",
         "border transition-all duration-200",
         @kind == :info && "bg-emerald-950/80 text-emerald-200 border-emerald-500/30",
-        @kind == :error && "bg-rose-950/80 text-rose-200 border-rose-500/30"
+        @kind == :error && "bg-rose-950/80 text-rose-200 border-rose-500/30",
+        @kind == :warning && "bg-amber-950/80 text-amber-200 border-amber-500/30"
       ]}
       {@rest}
     >
-      <p class="text-sm leading-5 font-medium">
+      <p class="text-sm leading-5 font-medium pr-6">
         {msg}
       </p>
+      <button
+        type="button"
+        phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("#{@id}")}
+        class="absolute top-2 right-2 text-lg opacity-60 hover:opacity-100 transition-opacity"
+        aria-label="Close"
+      >
+        ×
+      </button>
     </div>
     """
   end
@@ -57,6 +67,7 @@ defmodule LoomkinWeb.CoreComponents do
     <div id={@id}>
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
+      <.flash kind={:warning} flash={@flash} />
     </div>
     """
   end

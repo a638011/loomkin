@@ -339,6 +339,40 @@ Hooks.AutoResizeTextarea = {
   }
 }
 
+// AutoDismissFlash: auto-dismisses flash messages after 5 seconds with fade-out
+Hooks.AutoDismissFlash = {
+  mounted() {
+    // Start the dismiss timer
+    this.timer = setTimeout(() => {
+      this.dismiss()
+    }, 5000)
+
+    // Reset timer on hover (optional nice-to-have)
+    this.el.addEventListener('mouseenter', () => {
+      clearTimeout(this.timer)
+    })
+    this.el.addEventListener('mouseleave', () => {
+      this.timer = setTimeout(() => {
+        this.dismiss()
+      }, 2000) // Shorter timeout after hover
+    })
+  },
+  destroyed() {
+    clearTimeout(this.timer)
+  },
+  dismiss() {
+    // Add fade-out class
+    this.el.style.transition = 'opacity 0.3s ease-out'
+    this.el.style.opacity = '0'
+    // Remove from DOM after fade
+    setTimeout(() => {
+      if (this.el && this.el.parentNode) {
+        this.el.parentNode.removeChild(this.el)
+      }
+    }, 300)
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
